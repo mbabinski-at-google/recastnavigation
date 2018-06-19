@@ -158,10 +158,9 @@ void duDebugDrawHeightfieldSolid(duDebugDraw* dd, const rcHeightfield& hf)
 			float fx = orig[0] + x*cs;
 			float fz = orig[2] + y*cs;
 			const rcSpan* s = hf.spans[x + y*w];
-			while (s)
+			for (int i = 0; i < hf.spanCounts[x + y*w]; i++)
 			{
-				duAppendBox(dd, fx, orig[1]+s->smin*ch, fz, fx+cs, orig[1] + s->smax*ch, fz+cs, fcol);
-				s = s->next;
+				duAppendBox(dd, fx, orig[1]+s[i].smin*ch, fz, fx+cs, orig[1] + s[i].smax*ch, fz+cs, fcol);
 			}
 		}
 	}
@@ -191,7 +190,7 @@ void duDebugDrawHeightfieldWalkable(duDebugDraw* dd, const rcHeightfield& hf)
 			float fx = orig[0] + x*cs;
 			float fz = orig[2] + y*cs;
 			const rcSpan* s = hf.spans[x + y*w];
-			while (s)
+			for (int i = 0; i < hf.spanCounts[x + y*w]; i++)
 			{
 				if (s->area == RC_WALKABLE_AREA)
 					fcol[0] = duRGBA(64,128,160,255);
@@ -200,8 +199,7 @@ void duDebugDrawHeightfieldWalkable(duDebugDraw* dd, const rcHeightfield& hf)
 				else
 					fcol[0] = duMultCol(dd->areaToCol(s->area), 200);
 				
-				duAppendBox(dd, fx, orig[1]+s->smin*ch, fz, fx+cs, orig[1] + s->smax*ch, fz+cs, fcol);
-				s = s->next;
+				duAppendBox(dd, fx, orig[1]+s[i].smin*ch, fz, fx+cs, orig[1] + s[i].smax*ch, fz+cs, fcol);
 			}
 		}
 	}

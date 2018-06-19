@@ -434,8 +434,9 @@ TEST_CASE("rcCreateHeightfield")
 		REQUIRE(heightfield.ch == Approx(cellHeight));
 
 		REQUIRE(heightfield.spans != 0);
+		REQUIRE(heightfield.spanCounts != 0);
+		REQUIRE(heightfield.spanCaps != 0);
 		REQUIRE(heightfield.pools == 0);
-		REQUIRE(heightfield.freelist == 0);
 	}
 }
 
@@ -548,31 +549,38 @@ TEST_CASE("rcAddSpan")
 
 	SECTION("Add a span to an empty heightfield.")
 	{
+		smin = 0;
+		smax = 1;
 		bool result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
+		REQUIRE(hf.spanCounts[0] == 1);
 		REQUIRE(hf.spans[0] != 0);
-		REQUIRE(hf.spans[0]->smin == smin);
-		REQUIRE(hf.spans[0]->smax == smax);
-		REQUIRE(hf.spans[0]->area == area);
+		REQUIRE(hf.spans[0][0].smin == smin);
+		REQUIRE(hf.spans[0][0].smax == smax);
+		REQUIRE(hf.spans[0][0].area == area);
 	}
 
 	SECTION("Add a span that gets merged with an existing span.")
 	{
+		smin = 0;
+		smax = 1;
 		bool result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
+		REQUIRE(hf.spanCounts[0] == 1);
 		REQUIRE(hf.spans[0] != 0);
-		REQUIRE(hf.spans[0]->smin == smin);
-		REQUIRE(hf.spans[0]->smax == smax);
-		REQUIRE(hf.spans[0]->area == area);
+		REQUIRE(hf.spans[0][0].smin == smin);
+		REQUIRE(hf.spans[0][0].smax == smax);
+		REQUIRE(hf.spans[0][0].area == area);
 
 		smin = 1;
 		smax = 2;
 		result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
+		REQUIRE(hf.spanCounts[0] == 1);
 		REQUIRE(hf.spans[0] != 0);
-		REQUIRE(hf.spans[0]->smin == 0);
-		REQUIRE(hf.spans[0]->smax == 2);
-		REQUIRE(hf.spans[0]->area == area);
+		REQUIRE(hf.spans[0][0].smin == 0);
+		REQUIRE(hf.spans[0][0].smax == 2);
+		REQUIRE(hf.spans[0][0].area == area);
 	}
 
 	SECTION("Add a span that merges with two spans above and below.")
@@ -580,28 +588,27 @@ TEST_CASE("rcAddSpan")
 		smin = 0;
 		smax = 1;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
+		REQUIRE(hf.spanCounts[0] == 1);
 		REQUIRE(hf.spans[0] != 0);
-		REQUIRE(hf.spans[0]->smin == smin);
-		REQUIRE(hf.spans[0]->smax == smax);
-		REQUIRE(hf.spans[0]->area == area);
-		REQUIRE(hf.spans[0]->next == 0);
+		REQUIRE(hf.spans[0][0].smin == smin);
+		REQUIRE(hf.spans[0][0].smax == smax);
+		REQUIRE(hf.spans[0][0].area == area);
 
 		smin = 2;
 		smax = 3;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
-		REQUIRE(hf.spans[0]->next != 0);
-		REQUIRE(hf.spans[0]->next->smin == smin);
-		REQUIRE(hf.spans[0]->next->smax == smax);
-		REQUIRE(hf.spans[0]->next->area == area);
+		REQUIRE(hf.spanCounts[0] == 2);
+		REQUIRE(hf.spans[0][1].smin == smin);
+		REQUIRE(hf.spans[0][1].smax == smax);
+		REQUIRE(hf.spans[0][1].area == area);
 
 		smin = 1;
 		smax = 2;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
-		REQUIRE(hf.spans[0] != 0);
-		REQUIRE(hf.spans[0]->smin == 0);
-		REQUIRE(hf.spans[0]->smax == 3);
-		REQUIRE(hf.spans[0]->area == area);
-		REQUIRE(hf.spans[0]->next == 0);
+		REQUIRE(hf.spanCounts[0] == 1);
+		REQUIRE(hf.spans[0][0].smin == 0);
+		REQUIRE(hf.spans[0][0].smax == 3);
+		REQUIRE(hf.spans[0][0].area == area);
 	}
 }
 
@@ -635,25 +642,22 @@ TEST_CASE("rcRasterizeTriangle")
 	{
 		REQUIRE(rcRasterizeTriangle(&ctx, &verts[0], &verts[3], &verts[6], area, solid, flagMergeThr));
 
-		REQUIRE(solid.spans[0 + 0 * width]);
-		REQUIRE(!solid.spans[1 + 0 * width]);
-		REQUIRE(solid.spans[0 + 1 * width]);
-		REQUIRE(solid.spans[1 + 1 * width]);
+		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
+		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
 
-		REQUIRE(solid.spans[0 + 0 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 0 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 0 * width]->area == area);
-		REQUIRE(!solid.spans[0 + 0 * width]->next);
+		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 0 * width][0].area == area);
 
-		REQUIRE(solid.spans[0 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 1 * width]->area == area);
-		REQUIRE(!solid.spans[0 + 1 * width]->next);
+		REQUIRE(solid.spans[0 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 1 * width][0].area == area);
 
-		REQUIRE(solid.spans[1 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 1 * width]->area == area);
-		REQUIRE(!solid.spans[1 + 1 * width]->next);
+		REQUIRE(solid.spans[1 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 1 * width][0].area == area);
 	}
 }
 
@@ -695,44 +699,38 @@ TEST_CASE("rcRasterizeTriangles")
 	{
 		REQUIRE(rcRasterizeTriangles(&ctx, verts, 4, tris, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spans[0 + 0 * width]);
-		REQUIRE(solid.spans[0 + 1 * width]);
-		REQUIRE(solid.spans[0 + 2 * width]);
-		REQUIRE(solid.spans[0 + 3 * width]);
-		REQUIRE(!solid.spans[1 + 0 * width]);
-		REQUIRE(solid.spans[1 + 1 * width]);
-		REQUIRE(solid.spans[1 + 2 * width]);
-		REQUIRE(!solid.spans[1 + 3 * width]);
+		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
+		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
 
-		REQUIRE(solid.spans[0 + 0 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 0 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 0 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 0 * width]->next);
+		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 0 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 1 * width]->next);
+		REQUIRE(solid.spans[0 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 2 * width]->next);
+		REQUIRE(solid.spans[0 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 2 * width][0].area == 2);
 
-		REQUIRE(solid.spans[0 + 3 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 3 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 3 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 3 * width]->next);
+		REQUIRE(solid.spans[0 + 3 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 3 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 3 * width][0].area == 2);
 
-		REQUIRE(solid.spans[1 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[1 + 1 * width]->next);
+		REQUIRE(solid.spans[1 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[1 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[1 + 2 * width]->next);
+		REQUIRE(solid.spans[1 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 2 * width][0].area == 2);
 	}
 
 	SECTION("Unsigned short overload")
@@ -743,44 +741,38 @@ TEST_CASE("rcRasterizeTriangles")
 		};
 		REQUIRE(rcRasterizeTriangles(&ctx, verts, 4, utris, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spans[0 + 0 * width]);
-		REQUIRE(solid.spans[0 + 1 * width]);
-		REQUIRE(solid.spans[0 + 2 * width]);
-		REQUIRE(solid.spans[0 + 3 * width]);
-		REQUIRE(!solid.spans[1 + 0 * width]);
-		REQUIRE(solid.spans[1 + 1 * width]);
-		REQUIRE(solid.spans[1 + 2 * width]);
-		REQUIRE(!solid.spans[1 + 3 * width]);
+		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
+		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
 
-		REQUIRE(solid.spans[0 + 0 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 0 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 0 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 0 * width]->next);
+		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 0 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 1 * width]->next);
+		REQUIRE(solid.spans[0 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 2 * width]->next);
+		REQUIRE(solid.spans[0 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 2 * width][0].area == 2);
 
-		REQUIRE(solid.spans[0 + 3 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 3 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 3 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 3 * width]->next);
+		REQUIRE(solid.spans[0 + 3 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 3 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 3 * width][0].area == 2);
 
-		REQUIRE(solid.spans[1 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[1 + 1 * width]->next);
+		REQUIRE(solid.spans[1 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[1 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[1 + 2 * width]->next);
+		REQUIRE(solid.spans[1 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 2 * width][0].area == 2);
 	}
 
 	SECTION("Triangle list overload")
@@ -796,44 +788,38 @@ TEST_CASE("rcRasterizeTriangles")
 
 		REQUIRE(rcRasterizeTriangles(&ctx, vertsList, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spans[0 + 0 * width]);
-		REQUIRE(solid.spans[0 + 1 * width]);
-		REQUIRE(solid.spans[0 + 2 * width]);
-		REQUIRE(solid.spans[0 + 3 * width]);
-		REQUIRE(!solid.spans[1 + 0 * width]);
-		REQUIRE(solid.spans[1 + 1 * width]);
-		REQUIRE(solid.spans[1 + 2 * width]);
-		REQUIRE(!solid.spans[1 + 3 * width]);
+		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
+		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
+		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
 
-		REQUIRE(solid.spans[0 + 0 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 0 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 0 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 0 * width]->next);
+		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 0 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[0 + 1 * width]->next);
+		REQUIRE(solid.spans[0 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[0 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 2 * width]->next);
+		REQUIRE(solid.spans[0 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 2 * width][0].area == 2);
 
-		REQUIRE(solid.spans[0 + 3 * width]->smin == 0);
-		REQUIRE(solid.spans[0 + 3 * width]->smax == 1);
-		REQUIRE(solid.spans[0 + 3 * width]->area == 2);
-		REQUIRE(!solid.spans[0 + 3 * width]->next);
+		REQUIRE(solid.spans[0 + 3 * width][0].smin == 0);
+		REQUIRE(solid.spans[0 + 3 * width][0].smax == 1);
+		REQUIRE(solid.spans[0 + 3 * width][0].area == 2);
 
-		REQUIRE(solid.spans[1 + 1 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 1 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 1 * width]->area == 1);
-		REQUIRE(!solid.spans[1 + 1 * width]->next);
+		REQUIRE(solid.spans[1 + 1 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 1 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 1 * width][0].area == 1);
 
-		REQUIRE(solid.spans[1 + 2 * width]->smin == 0);
-		REQUIRE(solid.spans[1 + 2 * width]->smax == 1);
-		REQUIRE(solid.spans[1 + 2 * width]->area == 2);
-		REQUIRE(!solid.spans[1 + 2 * width]->next);
+		REQUIRE(solid.spans[1 + 2 * width][0].smin == 0);
+		REQUIRE(solid.spans[1 + 2 * width][0].smax == 1);
+		REQUIRE(solid.spans[1 + 2 * width][0].area == 2);
 	}
 }
 

@@ -106,8 +106,9 @@ rcHeightfield::rcHeightfield()
 	, cs()
 	, ch()
 	, spans()
+	, spanCounts()
+	, spanCaps()
 	, pools()
-	, freelist()
 {
 }
 
@@ -115,6 +116,8 @@ rcHeightfield::~rcHeightfield()
 {
 	// Delete span array.
 	rcFree(spans);
+	rcFree(spanCounts);
+	rcFree(spanCaps);
 	// Delete span pools.
 	while (pools)
 	{
@@ -308,9 +311,13 @@ bool rcCreateHeightfield(rcContext* ctx, rcHeightfield& hf, int width, int heigh
 	hf.cs = cs;
 	hf.ch = ch;
 	hf.spans = (rcSpan**)rcAlloc(sizeof(rcSpan*)*hf.width*hf.height, RC_ALLOC_PERM);
-	if (!hf.spans)
+	hf.spanCounts = (unsigned char*)rcAlloc(sizeof(unsigned char)*hf.width*hf.height, RC_ALLOC_PERM);
+	hf.spanCaps = (unsigned char*)rcAlloc(sizeof(unsigned char)*hf.width*hf.height, RC_ALLOC_PERM);
+	if (!hf.spans || !hf.spanCounts || !hf.spanCaps)
 		return false;
 	memset(hf.spans, 0, sizeof(rcSpan*)*hf.width*hf.height);
+	memset(hf.spanCounts, 0, sizeof(unsigned char)*hf.width*hf.height);
+	memset(hf.spanCaps, 0, sizeof(unsigned char)*hf.width*hf.height);
 	return true;
 }
 
@@ -388,19 +395,21 @@ int rcGetHeightFieldSpanCount(rcContext* ctx, rcHeightfield& hf)
 	
 	const int w = hf.width;
 	const int h = hf.height;
-	int spanCount = 0;
+	int totalSpanCount = 0;
 	for (int y = 0; y < h; ++y)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			for (rcSpan* s = hf.spans[x + y*w]; s; s = s->next)
+			int spanCount = hf.spanCounts[x + y*w];
+			rcSpan* spans = hf.spans[x + y*w];
+			for (int i = 0; i < spanCount; i++)
 			{
-				if (s->area != RC_NULL_AREA)
-					spanCount++;
+				if (spans[i].area != RC_NULL_AREA)
+					totalSpanCount++;
 			}
 		}
 	}
-	return spanCount;
+	return totalSpanCount;
 }
 
 /// @par
@@ -465,25 +474,26 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcSpan* s = hf.spans[x + y*w];
+			int numSpans = hf.spanCounts[x + y*w];
 			// If there are no spans at this cell, just leave the data to index=0, count=0.
-			if (!s) continue;
-			rcCompactCell& c = chf.cells[x+y*w];
+			if (numSpans == 0) continue;
+			rcCompactCell& c = chf.cells[x + y*w];
 			c.index = idx;
 			c.count = 0;
-			while (s)
+			const rcSpan* spans = hf.spans[x + y*w];
+			for (int i = 0; i < numSpans; i++)
 			{
-				if (s->area != RC_NULL_AREA)
-				{
-					const int bot = (int)s->smax;
-					const int top = s->next ? (int)s->next->smin : MAX_HEIGHT;
-					chf.spans[idx].y = (unsigned short)rcClamp(bot, 0, 0xffff);
-					chf.spans[idx].h = (unsigned char)rcClamp(top - bot, 0, 0xff);
-					chf.areas[idx] = s->area;
-					idx++;
-					c.count++;
-				}
-				s = s->next;
+				const rcSpan* s = &spans[i];
+				if (s->area == RC_NULL_AREA)
+					continue;
+
+				const int bot = (int)s->smax;
+				const int top = i == numSpans - 1 ? MAX_HEIGHT : (int)spans[i + 1].smin;
+				chf.spans[idx].y = (unsigned short)rcClamp(bot, 0, 0xffff);
+				chf.spans[idx].h = (unsigned char)rcClamp(top - bot, 0, 0xff);
+				chf.areas[idx] = s->area;
+				idx++;
+				c.count++;
 			}
 		}
 	}

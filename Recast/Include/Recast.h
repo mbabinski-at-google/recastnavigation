@@ -271,6 +271,8 @@ static const int RC_SPAN_MAX_HEIGHT = (1 << RC_SPAN_HEIGHT_BITS) - 1;
 /// @see rcSpanPool
 static const int RC_SPANS_PER_POOL = 2048;
 
+static const int RC_MAX_SPANS_PER_COLUMN = 255;
+
 /// Represents a span in a heightfield.
 /// @see rcHeightfield
 struct rcSpan
@@ -278,7 +280,6 @@ struct rcSpan
 	unsigned int smin : RC_SPAN_HEIGHT_BITS; ///< The lower limit of the span. [Limit: < #smax]
 	unsigned int smax : RC_SPAN_HEIGHT_BITS; ///< The upper limit of the span. [Limit: <= #RC_SPAN_MAX_HEIGHT]
 	unsigned int area : 6;                   ///< The area id assigned to the span.
-	rcSpan* next;                            ///< The next span higher up in column.
 };
 
 /// A memory pool used for quick allocation of spans within a heightfield.
@@ -287,6 +288,7 @@ struct rcSpanPool
 {
 	rcSpanPool* next;					///< The next span pool.
 	rcSpan items[RC_SPANS_PER_POOL];	///< Array of spans in the pool.
+	int index;							///< Index of next span free in pool.
 };
 
 /// A dynamic heightfield representing obstructed space.
@@ -296,15 +298,16 @@ struct rcHeightfield
 	rcHeightfield();
 	~rcHeightfield();
 
-	int width;			///< The width of the heightfield. (Along the x-axis in cell units.)
-	int height;			///< The height of the heightfield. (Along the z-axis in cell units.)
-	float bmin[3];  	///< The minimum bounds in world space. [(x, y, z)]
-	float bmax[3];		///< The maximum bounds in world space. [(x, y, z)]
-	float cs;			///< The size of each cell. (On the xz-plane.)
-	float ch;			///< The height of each cell. (The minimum increment along the y-axis.)
-	rcSpan** spans;		///< Heightfield of spans (width*height).
-	rcSpanPool* pools;	///< Linked list of span pools.
-	rcSpan* freelist;	///< The next free span.
+	int width;					///< The width of the heightfield. (Along the x-axis in cell units.)
+	int height;					///< The height of the heightfield. (Along the z-axis in cell units.)
+	float bmin[3];  			///< The minimum bounds in world space. [(x, y, z)]
+	float bmax[3];				///< The maximum bounds in world space. [(x, y, z)]
+	float cs;					///< The size of each cell. (On the xz-plane.)
+	float ch;					///< The height of each cell. (The minimum increment along the y-axis.)
+	rcSpan** spans;				///< Heightfield of spans (width*height).
+	unsigned char* spanCounts;	///< Count of spans (width*height).
+	unsigned char* spanCaps;	///< Capacity of spans (width*height).
+	rcSpanPool* pools;			///< Linked list of span pools.
 
 private:
 	// Explicitly-disabled copy constructor and copy assignment operator.

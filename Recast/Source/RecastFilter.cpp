@@ -46,18 +46,19 @@ void rcFilterLowHangingWalkableObstacles(rcContext* ctx, const int walkableClimb
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			rcSpan* ps = 0;
 			bool previousWalkable = false;
 			unsigned char previousArea = RC_NULL_AREA;
 			
-			for (rcSpan* s = solid.spans[x + y*w]; s; ps = s, s = s->next)
+			rcSpan* spans = solid.spans[x + y*w];
+			for (int i = 0; i < solid.spanCounts[x + y*w]; i++)
 			{
+				rcSpan* s = &spans[i];
 				const bool walkable = s->area != RC_NULL_AREA;
 				// If current span is not walkable, but there is walkable
 				// span just below it, mark the span above it walkable too.
 				if (!walkable && previousWalkable)
 				{
-					if (rcAbs((int)s->smax - (int)ps->smax) <= walkableClimb)
+					if (rcAbs((int)s->smax - (int)spans[i-1].smax) <= walkableClimb)
 						s->area = previousArea;
 				}
 				// Copy walkable flag so that it cannot propagate
@@ -95,14 +96,17 @@ void rcFilterLedgeSpans(rcContext* ctx, const int walkableHeight, const int walk
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			for (rcSpan* s = solid.spans[x + y*w]; s; s = s->next)
+			int spanCount = solid.spanCounts[x + y*w];
+			rcSpan* spans = solid.spans[x + y*w];
+			for (int i = 0; i < spanCount; i++)
 			{
+				rcSpan* s = &spans[i];
 				// Skip non walkable spans.
 				if (s->area == RC_NULL_AREA)
 					continue;
 				
 				const int bot = (int)(s->smax);
-				const int top = s->next ? (int)(s->next->smin) : MAX_HEIGHT;
+				const int top = i == spanCount - 1 ? MAX_HEIGHT : spans[i + 1].smin;
 				
 				// Find neighbours minimum height.
 				int minh = MAX_HEIGHT;
@@ -131,10 +135,13 @@ void rcFilterLedgeSpans(rcContext* ctx, const int walkableHeight, const int walk
 						minh = rcMin(minh, nbot - bot);
 					
 					// Rest of the spans.
-					for (ns = solid.spans[dx + dy*w]; ns; ns = ns->next)
+					int neighborSpanCount = solid.spanCounts[dx + dy*w];
+					rcSpan* neighborSpans = solid.spans[dx + dy*w];
+					for (int i = 0; i < neighborSpanCount; i++)
 					{
+						rcSpan* ns = &neighborSpans[i];
 						nbot = (int)ns->smax;
-						ntop = ns->next ? (int)ns->next->smin : MAX_HEIGHT;
+						ntop = i == neighborSpanCount - 1 ? MAX_HEIGHT : neighborSpans[i + 1].smin;
 						// Skip neightbour if the gap between the spans is too small.
 						if (rcMin(top,ntop) - rcMax(bot,nbot) > walkableHeight)
 						{
@@ -190,12 +197,14 @@ void rcFilterWalkableLowHeightSpans(rcContext* ctx, int walkableHeight, rcHeight
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			for (rcSpan* s = solid.spans[x + y*w]; s; s = s->next)
+			int spanCount = solid.spanCounts[x + y*w];
+			rcSpan* spans = solid.spans[x + y*w];
+			for (int i = 0; i < spanCount; i++)
 			{
-				const int bot = (int)(s->smax);
-				const int top = s->next ? (int)(s->next->smin) : MAX_HEIGHT;
+				const int bot = (int)(spans[i].smax);
+				const int top = i == spanCount - 1 ? MAX_HEIGHT : spans[i + 1].smin;
 				if ((top - bot) <= walkableHeight)
-					s->area = RC_NULL_AREA;
+					spans[i].area = RC_NULL_AREA;
 			}
 		}
 	}

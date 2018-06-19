@@ -19,6 +19,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include "Recast.h"
 #include "RecastAlloc.h"
 #include "RecastAssert.h"
@@ -41,120 +42,99 @@ inline bool overlapInterval(unsigned short amin, unsigned short amax,
 }
 
 
-static rcSpan* allocSpan(rcHeightfield& hf)
+static rcSpan* reallocSpanColumn(rcHeightfield& hf, int colIdx, int insertIndex)
 {
-	// If running out of memory, allocate new page and update the freelist.
-	if (!hf.freelist || !hf.freelist->next)
+	int curCap = hf.spanCaps[colIdx];
+	int newCap = rcMin(curCap == 0 ? 2 : curCap * 2, RC_MAX_SPANS_PER_COLUMN);
+
+	if (newCap == curCap)
+		return 0;
+
+	rcSpanPool* pool = hf.pools;
+	if (!pool || pool->index + newCap > RC_SPANS_PER_POOL)
 	{
-		// Create new page.
-		// Allocate memory for the new pool.
-		rcSpanPool* pool = (rcSpanPool*)rcAlloc(sizeof(rcSpanPool), RC_ALLOC_PERM);
-		if (!pool) return 0;
+		pool = (rcSpanPool*)rcAlloc(sizeof(rcSpanPool), RC_ALLOC_PERM);
+		if (!pool)
+			return 0;
 
-		// Add the pool into the list of pools.
 		pool->next = hf.pools;
+		pool->index = 0;
 		hf.pools = pool;
-		// Add new items to the free list.
-		rcSpan* freelist = hf.freelist;
-		rcSpan* head = &pool->items[0];
-		rcSpan* it = &pool->items[RC_SPANS_PER_POOL];
-		do
-		{
-			--it;
-			it->next = freelist;
-			freelist = it;
-		}
-		while (it != head);
-		hf.freelist = it;
 	}
-	
-	// Pop item from in front of the free list.
-	rcSpan* it = hf.freelist;
-	hf.freelist = hf.freelist->next;
-	return it;
-}
 
-static void freeSpan(rcHeightfield& hf, rcSpan* ptr)
-{
-	if (!ptr) return;
-	// Add the node in front of the free list.
-	ptr->next = hf.freelist;
-	hf.freelist = ptr;
+	rcSpan* oldCol = hf.spans[colIdx];
+	rcSpan* newCol = &pool->items[pool->index];
+
+	pool->index += newCap;
+	memcpy(newCol, oldCol, static_cast<size_t>(insertIndex) * sizeof(rcSpan));
+	memcpy(&newCol[insertIndex + 1], &oldCol[insertIndex], (hf.spanCounts[colIdx] - static_cast<size_t>(insertIndex)) * sizeof(rcSpan));
+
+	hf.spans[colIdx] = newCol;
+	hf.spanCaps[colIdx] = newCap;
+	return newCol;
 }
 
 static bool addSpan(rcHeightfield& hf, const int x, const int y,
-					const unsigned short smin, const unsigned short smax,
-					const unsigned char area, const int flagMergeThr)
+					unsigned short smin, unsigned short smax,
+					unsigned char area, const int flagMergeThr)
 {
 	
-	int idx = x + y*hf.width;
-	
-	rcSpan* s = allocSpan(hf);
-	if (!s)
-		return false;
-	s->smin = smin;
-	s->smax = smax;
-	s->area = area;
-	s->next = 0;
-	
-	// Empty cell, add the first span.
-	if (!hf.spans[idx])
+	int colIdx = x + y*hf.width;
+	rcSpan* col = hf.spans[colIdx];
+	int numSpans = hf.spanCounts[colIdx];
+
+	int insertIndexStart = 0;
+	int insertIndexEnd = 0;
+
+	for (int i = 0; i < numSpans; i++)
 	{
-		hf.spans[idx] = s;
-		return true;
-	}
-	rcSpan* prev = 0;
-	rcSpan* cur = hf.spans[idx];
-	
-	// Insert and merge spans.
-	while (cur)
-	{
-		if (cur->smin > s->smax)
+		const rcSpan* cur = &col[i];
+		if (cur->smin > smax)
 		{
-			// Current span is further than the new span, break.
+			insertIndexEnd = i;
 			break;
 		}
-		else if (cur->smax < s->smin)
+		if (cur->smax < smin)
 		{
-			// Current span is before the new span advance.
-			prev = cur;
-			cur = cur->next;
+			insertIndexStart = i + 1;
+			continue;
 		}
-		else
-		{
-			// Merge spans.
-			if (cur->smin < s->smin)
-				s->smin = cur->smin;
-			if (cur->smax > s->smax)
-				s->smax = cur->smax;
-			
-			// Merge flags.
-			if (rcAbs((int)s->smax - (int)cur->smax) <= flagMergeThr)
-				s->area = rcMax(s->area, cur->area);
-			
-			// Remove current span.
-			rcSpan* next = cur->next;
-			freeSpan(hf, cur);
-			if (prev)
-				prev->next = next;
-			else
-				hf.spans[idx] = next;
-			cur = next;
-		}
+
+		smin = rcMin<unsigned int>(smin, cur->smin);
+		smax = rcMax<unsigned int>(smax, cur->smax);
+		if (rcAbs((int)smax - (int)cur->smax) <= flagMergeThr)
+			area = rcMax(area, static_cast<unsigned char>(cur->area));
+
+		insertIndexEnd = i + 1;
 	}
-	
-	// Insert new span.
-	if (prev)
+
+	// Make space for insertion
+	if (insertIndexEnd > insertIndexStart)
 	{
-		s->next = prev->next;
-		prev->next = s;
+		// We need to remove some. We can remove all except the first,
+		// which we will modify in place.
+		memmove(&col[insertIndexStart + 1], &col[insertIndexEnd], sizeof(rcSpan)*(numSpans - insertIndexEnd));
+		hf.spanCounts[colIdx] -= insertIndexEnd - (insertIndexStart + 1);
 	}
 	else
 	{
-		s->next = hf.spans[idx];
-		hf.spans[idx] = s;
+		// We need to insert, so reallocate if needed
+		if (numSpans == hf.spanCaps[colIdx])
+		{
+			col = reallocSpanColumn(hf, colIdx, insertIndexStart);
+			if (!col)
+				return false;
+		}
+		else
+			memmove(&col[insertIndexStart + 1], &col[insertIndexStart], sizeof(rcSpan)*(numSpans - insertIndexStart));
+
+		hf.spanCounts[colIdx]++;
 	}
 
+	rcSpan* s = &col[insertIndexStart];
+	s->smin = smin;
+	s->smax = smax;
+	s->area = area;
 	return true;
 }
 
@@ -173,7 +153,7 @@ bool rcAddSpan(rcContext* ctx, rcHeightfield& hf, const int x, const int y,
 
 	if (!addSpan(hf, x, y, smin, smax, area, flagMergeThr))
 	{
-		ctx->log(RC_LOG_ERROR, "rcAddSpan: Out of memory.");
+		ctx->log(RC_LOG_ERROR, "rcAddSpan: Could not add span.");
 		return false;
 	}
 
@@ -351,7 +331,7 @@ bool rcRasterizeTriangle(rcContext* ctx, const float* v0, const float* v1, const
 	const float ich = 1.0f/solid.ch;
 	if (!rasterizeTri(v0, v1, v2, area, solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 	{
-		ctx->log(RC_LOG_ERROR, "rcRasterizeTriangle: Out of memory.");
+		ctx->log(RC_LOG_ERROR, "rcRasterizeTriangle: Rasterization failed.");
 		return false;
 	}
 
@@ -382,7 +362,7 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 		// Rasterize.
 		if (!rasterizeTri(v0, v1, v2, areas[i], solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 		{
-			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Out of memory.");
+			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Rasterization failed.");
 			return false;
 		}
 	}
@@ -414,7 +394,7 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 		// Rasterize.
 		if (!rasterizeTri(v0, v1, v2, areas[i], solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 		{
-			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Out of memory.");
+			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Rasterization failed.");
 			return false;
 		}
 	}
@@ -445,7 +425,7 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const unsigned cha
 		// Rasterize.
 		if (!rasterizeTri(v0, v1, v2, areas[i], solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 		{
-			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Out of memory.");
+			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Rasterization failed.");
 			return false;
 		}
 	}
