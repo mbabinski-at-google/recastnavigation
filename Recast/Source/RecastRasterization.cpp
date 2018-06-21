@@ -314,6 +314,25 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 	return true;
 }
 
+struct Face {
+  int indices[3];
+};
+
+struct CompareFaces {
+  CompareFaces(const Face* faces, const float* verts) : faces_(faces), verts_(verts) {}
+  bool operator()(int a, int b) const {
+	return Z(faces_[a]) < Z(faces_[b]);
+  }
+ private:
+  float Z(const Face& face) const {
+	return verts_[3*face.indices[0] + 1];
+  }
+  const Face* faces_;
+  const float* verts_;
+};
+
+#include <algorithm>
+
 /// @par
 ///
 /// No spans will be added if the triangle does not overlap the heightfield grid.
@@ -348,6 +367,13 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 						  rcHeightfield& solid, const int flagMergeThr)
 {
 	rcAssert(ctx);
+	rcTempVector<int> indices;
+	indices.resize(nt);
+	for (int i = 0; i < nt; i++) {
+	  indices[i] = i;
+	}
+	std::sort(indices.begin(), indices.end(), CompareFaces((const Face*) tris, verts));
+	printf("YOYOYOYO\n");
 
 	rcScopedTimer timer(ctx, RC_TIMER_RASTERIZE_TRIANGLES);
 	
@@ -356,9 +382,10 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 	// Rasterize triangles.
 	for (int i = 0; i < nt; ++i)
 	{
-		const float* v0 = &verts[tris[i*3+0]*3];
-		const float* v1 = &verts[tris[i*3+1]*3];
-		const float* v2 = &verts[tris[i*3+2]*3];
+		const Face& tri = ((const Face*)tris)[indices[i]];
+		const float* v0 = &verts[tri.indices[0]*3];
+		const float* v1 = &verts[tri.indices[1]*3];
+		const float* v2 = &verts[tri.indices[2]*3];
 		// Rasterize.
 		if (!rasterizeTri(v0, v1, v2, areas[i], solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 		{
