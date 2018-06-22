@@ -179,7 +179,7 @@ template <typename T, rcAllocHint H>
 T* rcVectorBase<T, H>::allocate_and_copy(rcSizeType size) {
 	rcAssert(RC_SIZE_MAX / static_cast<rcSizeType>(sizeof(T)) >= size);
 	T* new_data = static_cast<T*>(rcAlloc(sizeof(T) * size, H));
-	if (new_data) {
+	if (new_data != NULL) {
 		copy_range(new_data, m_data, m_data + m_size);
 	}
 	return new_data;
@@ -248,7 +248,7 @@ T* rcVectorBase<T, H>::insert(const T* pos, const T& value) {
   } else {
 	do_insert(m_data, insert_index, value);
   }
-  return m_data + insert_index;
+  return m_data + insert_index + 1;
 }
 
 template <typename T, rcAllocHint H>

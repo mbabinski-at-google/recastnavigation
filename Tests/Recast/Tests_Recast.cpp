@@ -1057,7 +1057,7 @@ TEST_CASE("rcVector")
 		rcTempVector<int> a;
 		for (int i = 0; i < 5; i++) {
 		  int* pos = a.insert(a.begin(), i);
-		  REQUIRE(pos == a.begin());
+		  REQUIRE(pos == a.begin() + 1);
 		}
 		REQUIRE(a.size() == 5);
 		REQUIRE(a[0] == 4);
@@ -1242,10 +1242,6 @@ BM(stdvector_insert_front, kNumLoops)
 	}
 	DoNotOptimize(v.data());
 }
-template <typename V>
-void Foo(V* x) {
-  x->insert(x->begin(), 0xdead);
-}
 BM(rcVector_insert_front, kNumLoops)
 {
 	rcTempVector<int> v;
@@ -1253,10 +1249,23 @@ BM(rcVector_insert_front, kNumLoops)
 	  v.insert(v.begin(), i);
 	}
 	DoNotOptimize(v.data());
-	DoNotOptimize(&Foo<std::vector<int>>);
-	DoNotOptimize(&Foo<rcTempVector<int>>);
 }
-
+BM(stdvector_insert_back, kNumLoops)
+{
+	std::vector<int> v;
+	for (int i= 0; i < kNumInserts; i++) {
+	  v.insert(v.end(), i);
+	}
+	DoNotOptimize(v.data());
+}
+BM(rcVector_insert_back, kNumLoops)
+{
+	rcTempVector<int> v;
+	for (int i= 0; i < kNumInserts; i++) {
+	  v.insert(v.end(), i);
+	}
+	DoNotOptimize(v.data());
+}
 
 
 #undef BM

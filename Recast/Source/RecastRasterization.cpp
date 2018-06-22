@@ -50,6 +50,7 @@ static bool addSpan(rcHeightfield& hf, const int x, const int y,
 	int colIdx = x + y*hf.width;
 	rcPermVector<rcSpan>& col = hf.spans[colIdx];
 	int numSpans = col.size();
+	col.reserve(4);
 
 	int insertIndexStart = numSpans;
 	int insertIndexEnd = numSpans;
