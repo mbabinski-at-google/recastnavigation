@@ -105,26 +105,11 @@ rcHeightfield::rcHeightfield()
 	, bmax()
 	, cs()
 	, ch()
-	, spans()
-	, spanCounts()
-	, spanCaps()
-	, pools()
 {
 }
 
 rcHeightfield::~rcHeightfield()
 {
-	// Delete span array.
-	rcFree(spans);
-	rcFree(spanCounts);
-	rcFree(spanCaps);
-	// Delete span pools.
-	while (pools)
-	{
-		rcSpanPool* next = pools->next;
-		rcFree(pools);
-		pools = next;
-	}
 }
 
 void rcFreeHeightField(rcHeightfield* hf)
@@ -310,14 +295,7 @@ bool rcCreateHeightfield(rcContext* ctx, rcHeightfield& hf, int width, int heigh
 	rcVcopy(hf.bmax, bmax);
 	hf.cs = cs;
 	hf.ch = ch;
-	hf.spans = (rcSpan**)rcAlloc(sizeof(rcSpan*)*hf.width*hf.height, RC_ALLOC_PERM);
-	hf.spanCounts = (unsigned char*)rcAlloc(sizeof(unsigned char)*hf.width*hf.height, RC_ALLOC_PERM);
-	hf.spanCaps = (unsigned char*)rcAlloc(sizeof(unsigned char)*hf.width*hf.height, RC_ALLOC_PERM);
-	if (!hf.spans || !hf.spanCounts || !hf.spanCaps)
-		return false;
-	memset(hf.spans, 0, sizeof(rcSpan*)*hf.width*hf.height);
-	memset(hf.spanCounts, 0, sizeof(unsigned char)*hf.width*hf.height);
-	memset(hf.spanCaps, 0, sizeof(unsigned char)*hf.width*hf.height);
+	hf.spans.resize(hf.width*hf.height);
 	return true;
 }
 
@@ -400,9 +378,8 @@ int rcGetHeightFieldSpanCount(rcContext* ctx, rcHeightfield& hf)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			int spanCount = hf.spanCounts[x + y*w];
-			rcSpan* spans = hf.spans[x + y*w];
-			for (int i = 0; i < spanCount; i++)
+			rcPermVector<rcSpan>& spans = hf.spans[x + y*w];
+			for (int i = 0; i < spans.size(); i++)
 			{
 				if (spans[i].area != RC_NULL_AREA)
 					totalSpanCount++;
@@ -474,13 +451,13 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			int numSpans = hf.spanCounts[x + y*w];
+			const rcPermVector<rcSpan>& spans = hf.spans[x + y*w];
+			int numSpans = spans.size();
 			// If there are no spans at this cell, just leave the data to index=0, count=0.
 			if (numSpans == 0) continue;
 			rcCompactCell& c = chf.cells[x + y*w];
 			c.index = idx;
 			c.count = 0;
-			const rcSpan* spans = hf.spans[x + y*w];
 			for (int i = 0; i < numSpans; i++)
 			{
 				const rcSpan* s = &spans[i];

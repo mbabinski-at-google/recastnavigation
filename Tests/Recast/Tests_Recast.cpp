@@ -433,10 +433,7 @@ TEST_CASE("rcCreateHeightfield")
 		REQUIRE(heightfield.cs == Approx(cellSize));
 		REQUIRE(heightfield.ch == Approx(cellHeight));
 
-		REQUIRE(heightfield.spans != 0);
-		REQUIRE(heightfield.spanCounts != 0);
-		REQUIRE(heightfield.spanCaps != 0);
-		REQUIRE(heightfield.pools == 0);
+		REQUIRE(heightfield.spans.size() != 0);
 	}
 }
 
@@ -553,8 +550,7 @@ TEST_CASE("rcAddSpan")
 		smax = 1;
 		bool result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
-		REQUIRE(hf.spanCounts[0] == 1);
-		REQUIRE(hf.spans[0] != 0);
+		REQUIRE(hf.spans[0].size() != 0);
 		REQUIRE(hf.spans[0][0].smin == smin);
 		REQUIRE(hf.spans[0][0].smax == smax);
 		REQUIRE(hf.spans[0][0].area == area);
@@ -566,8 +562,7 @@ TEST_CASE("rcAddSpan")
 		smax = 1;
 		bool result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
-		REQUIRE(hf.spanCounts[0] == 1);
-		REQUIRE(hf.spans[0] != 0);
+		REQUIRE(hf.spans[0].size() == 1);
 		REQUIRE(hf.spans[0][0].smin == smin);
 		REQUIRE(hf.spans[0][0].smax == smax);
 		REQUIRE(hf.spans[0][0].area == area);
@@ -576,8 +571,7 @@ TEST_CASE("rcAddSpan")
 		smax = 2;
 		result = rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr);
 		REQUIRE(result);
-		REQUIRE(hf.spanCounts[0] == 1);
-		REQUIRE(hf.spans[0] != 0);
+		REQUIRE(hf.spans[0].size() == 1);
 		REQUIRE(hf.spans[0][0].smin == 0);
 		REQUIRE(hf.spans[0][0].smax == 2);
 		REQUIRE(hf.spans[0][0].area == area);
@@ -588,8 +582,7 @@ TEST_CASE("rcAddSpan")
 		smin = 0;
 		smax = 1;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
-		REQUIRE(hf.spanCounts[0] == 1);
-		REQUIRE(hf.spans[0] != 0);
+		REQUIRE(hf.spans[0].size() == 1);
 		REQUIRE(hf.spans[0][0].smin == smin);
 		REQUIRE(hf.spans[0][0].smax == smax);
 		REQUIRE(hf.spans[0][0].area == area);
@@ -597,7 +590,7 @@ TEST_CASE("rcAddSpan")
 		smin = 2;
 		smax = 3;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
-		REQUIRE(hf.spanCounts[0] == 2);
+		REQUIRE(hf.spans[0].size() == 2);
 		REQUIRE(hf.spans[0][1].smin == smin);
 		REQUIRE(hf.spans[0][1].smax == smax);
 		REQUIRE(hf.spans[0][1].area == area);
@@ -605,7 +598,7 @@ TEST_CASE("rcAddSpan")
 		smin = 1;
 		smax = 2;
 		REQUIRE(rcAddSpan(&ctx, hf, x, y, smin, smax, area, flagMergeThr));
-		REQUIRE(hf.spanCounts[0] == 1);
+		REQUIRE(hf.spans[0].size() == 1);
 		REQUIRE(hf.spans[0][0].smin == 0);
 		REQUIRE(hf.spans[0][0].smax == 3);
 		REQUIRE(hf.spans[0][0].area == area);
@@ -642,10 +635,10 @@ TEST_CASE("rcRasterizeTriangle")
 	{
 		REQUIRE(rcRasterizeTriangle(&ctx, &verts[0], &verts[3], &verts[6], area, solid, flagMergeThr));
 
-		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
-		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
+		REQUIRE(solid.spans[0 + 0 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 0 * width].size() == 0);
+		REQUIRE(solid.spans[0 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 1 * width].size() == 1);
 
 		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
 		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
@@ -699,14 +692,14 @@ TEST_CASE("rcRasterizeTriangles")
 	{
 		REQUIRE(rcRasterizeTriangles(&ctx, verts, 4, tris, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
-		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
+		REQUIRE(solid.spans[0 + 0 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 3 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 0 * width].size() == 0);
+		REQUIRE(solid.spans[1 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 3 * width].size() == 0);
 
 		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
 		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
@@ -741,14 +734,14 @@ TEST_CASE("rcRasterizeTriangles")
 		};
 		REQUIRE(rcRasterizeTriangles(&ctx, verts, 4, utris, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
-		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
+		REQUIRE(solid.spans[0 + 0 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 3 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 0 * width].size() == 0);
+		REQUIRE(solid.spans[1 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 3 * width].size() == 0);
 
 		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
 		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
@@ -788,14 +781,14 @@ TEST_CASE("rcRasterizeTriangles")
 
 		REQUIRE(rcRasterizeTriangles(&ctx, vertsList, areas, 2, solid, flagMergeThr));
 
-		REQUIRE(solid.spanCounts[0 + 0 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[0 + 3 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 0 * width] == 0);
-		REQUIRE(solid.spanCounts[1 + 1 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 2 * width] == 1);
-		REQUIRE(solid.spanCounts[1 + 3 * width] == 0);
+		REQUIRE(solid.spans[0 + 0 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[0 + 3 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 0 * width].size() == 0);
+		REQUIRE(solid.spans[1 + 1 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 2 * width].size() == 1);
+		REQUIRE(solid.spans[1 + 3 * width].size() == 0);
 
 		REQUIRE(solid.spans[0 + 0 * width][0].smin == 0);
 		REQUIRE(solid.spans[0 + 0 * width][0].smax == 1);
@@ -1059,6 +1052,21 @@ TEST_CASE("rcVector")
 		REQUIRE(Incrementor::copies == 10);
 	}
 
+	SECTION("Insert")
+	{
+		rcTempVector<int> a;
+		for (int i = 0; i < 5; i++) {
+		  int* pos = a.insert(a.begin(), i);
+		  REQUIRE(pos == a.begin());
+		}
+		REQUIRE(a.size() == 5);
+		REQUIRE(a[0] == 4);
+		REQUIRE(a[1] == 3);
+		REQUIRE(a[2] == 2);
+		REQUIRE(a[3] == 1);
+		REQUIRE(a[4] == 0);
+	}
+
 	SECTION("Type Requirements")
 	{
 		// This section verifies that we don't enforce unnecessary
@@ -1225,6 +1233,31 @@ BM(stdvector_Resize, kNumLoops)
 	v.resize(kNumInserts, 2);
 	DoNotOptimize(v.data());
 }
+
+BM(stdvector_insert_front, kNumLoops)
+{
+	std::vector<int> v;
+	for (int i= 0; i < 1000; i++) {
+	  v.insert(v.begin(), i);
+	}
+	DoNotOptimize(v.data());
+}
+template <typename V>
+void Foo(V* x) {
+  x->insert(x->begin(), 0xdead);
+}
+BM(rcVector_insert_front, kNumLoops)
+{
+	rcTempVector<int> v;
+	for (int i= 0; i < 1000; i++) {
+	  v.insert(v.begin(), i);
+	}
+	DoNotOptimize(v.data());
+	DoNotOptimize(&Foo<std::vector<int>>);
+	DoNotOptimize(&Foo<rcTempVector<int>>);
+}
+
+
 
 #undef BM
 #endif  // _POSIX_TIMERS

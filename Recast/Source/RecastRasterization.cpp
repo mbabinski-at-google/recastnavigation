@@ -17,6 +17,7 @@
 //
 
 #define _USE_MATH_DEFINES
+#include <algorithm>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -42,99 +43,53 @@ inline bool overlapInterval(unsigned short amin, unsigned short amax,
 }
 
 
-static rcSpan* reallocSpanColumn(rcHeightfield& hf, int colIdx, int insertIndex)
-{
-	int curCap = hf.spanCaps[colIdx];
-	int newCap = rcMin(curCap == 0 ? 2 : curCap * 2, RC_MAX_SPANS_PER_COLUMN);
-
-	if (newCap == curCap)
-		return 0;
-
-	rcSpanPool* pool = hf.pools;
-	if (!pool || pool->index + newCap > RC_SPANS_PER_POOL)
-	{
-		pool = (rcSpanPool*)rcAlloc(sizeof(rcSpanPool), RC_ALLOC_PERM);
-		if (!pool)
-			return 0;
-
-		pool->next = hf.pools;
-		pool->index = 0;
-		hf.pools = pool;
-	}
-
-	rcSpan* oldCol = hf.spans[colIdx];
-	rcSpan* newCol = &pool->items[pool->index];
-
-	pool->index += newCap;
-	memcpy(newCol, oldCol, static_cast<size_t>(insertIndex) * sizeof(rcSpan));
-	memcpy(&newCol[insertIndex + 1], &oldCol[insertIndex], (hf.spanCounts[colIdx] - static_cast<size_t>(insertIndex)) * sizeof(rcSpan));
-
-	hf.spans[colIdx] = newCol;
-	hf.spanCaps[colIdx] = newCap;
-	return newCol;
-}
-
 static bool addSpan(rcHeightfield& hf, const int x, const int y,
 					unsigned short smin, unsigned short smax,
 					unsigned char area, const int flagMergeThr)
 {
-	
 	int colIdx = x + y*hf.width;
-	rcSpan* col = hf.spans[colIdx];
-	int numSpans = hf.spanCounts[colIdx];
+	rcPermVector<rcSpan>& col = hf.spans[colIdx];
+	int numSpans = col.size();
 
-	int insertIndexStart = 0;
-	int insertIndexEnd = 0;
+	int insertIndexStart = numSpans;
+	int insertIndexEnd = numSpans;
 
-	for (int i = 0; i < numSpans; i++)
-	{
+	// printf("Add span %d-%d\n", smin, smax);
+	  for (int i = numSpans - 1; i >= 0; i--) {
 		const rcSpan* cur = &col[i];
-		if (cur->smin > smax)
-		{
-			insertIndexEnd = i;
-			break;
+		//printf("Checking at %d\n", i);
+		if (cur->smax < smin) {
+		  //printf("Out! %d\n", col[i].smax);
+		  break;
 		}
-		if (cur->smax < smin)
-		{
-			insertIndexStart = i + 1;
-			continue;
+		if (cur->smin > smax) {
+		  insertIndexEnd = i;
+		} else {
+		  smax = rcMax<unsigned int>(smax, cur->smax);
 		}
-
 		smin = rcMin<unsigned int>(smin, cur->smin);
-		smax = rcMax<unsigned int>(smax, cur->smax);
+
 		if (rcAbs((int)smax - (int)cur->smax) <= flagMergeThr)
 			area = rcMax(area, static_cast<unsigned char>(cur->area));
+		insertIndexStart = i;
+	  }
+	// printf("XXX %d\n", insertIndexStart);
 
-		insertIndexEnd = i + 1;
+
+	rcSpan s;
+	s.smin = smin;
+	s.smax = smax;
+	s.area = area;
+
+	if (insertIndexEnd > insertIndexStart) {
+	  col.erase(col.begin() + insertIndexStart + 1, col.begin() + insertIndexEnd);
+	  col[insertIndexStart] = s;
+	} else {
+	  if (!col.insert(col.begin() + insertIndexStart, s)){
+		return false;
+	  }
 	}
 
-	// Make space for insertion
-	if (insertIndexEnd > insertIndexStart)
-	{
-		// We need to remove some. We can remove all except the first,
-		// which we will modify in place.
-		memmove(&col[insertIndexStart + 1], &col[insertIndexEnd], sizeof(rcSpan)*(numSpans - insertIndexEnd));
-		hf.spanCounts[colIdx] -= insertIndexEnd - (insertIndexStart + 1);
-	}
-	else
-	{
-		// We need to insert, so reallocate if needed
-		if (numSpans == hf.spanCaps[colIdx])
-		{
-			col = reallocSpanColumn(hf, colIdx, insertIndexStart);
-			if (!col)
-				return false;
-		}
-		else
-			memmove(&col[insertIndexStart + 1], &col[insertIndexStart], sizeof(rcSpan)*(numSpans - insertIndexStart));
-
-		hf.spanCounts[colIdx]++;
-	}
-
-	rcSpan* s = &col[insertIndexStart];
-	s->smin = smin;
-	s->smax = smax;
-	s->area = area;
 	return true;
 }
 

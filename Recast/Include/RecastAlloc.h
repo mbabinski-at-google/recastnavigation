@@ -101,6 +101,7 @@ class rcVectorBase {
 	static void construct_range(T* begin, T* end);
 	static void construct_range(T* begin, T* end, const T& value);
 	static void copy_range(T* dst, const T* begin, const T* end);
+	void do_insert(T* data, rcSizeType insert_index, const T& value);
 	void destroy_range(rcSizeType begin, rcSizeType end);
 	// Creates an array of the given size, copies all of this vector's data into it, and returns it.
 	T* allocate_and_copy(rcSizeType size);
@@ -126,6 +127,8 @@ class rcVectorBase {
 	void resize(rcSizeType size, const T& value) { resize_impl(size, &value); }
 	// Not implemented as resize(0) because resize requires T to be default-constructible.
 	void clear() { destroy_range(0, m_size); m_size = 0; }
+	T* erase(T* pos) { erase(pos, pos + 1); }
+	T* erase(T* first, T* last);
 
 	void push_back(const T& value);
 	void pop_back() { rcAssert(m_size > 0); back().~T(); m_size--; }
@@ -148,6 +151,8 @@ class rcVectorBase {
 	T* end() { return m_data + m_size; }
 	const T* begin() const { return m_data; }
 	const T* end() const { return m_data + m_size; }
+
+	T* insert(const T* pos, const T& value);
 
 	void swap(rcVectorBase<T, H>& other);
 
@@ -207,6 +212,57 @@ void rcVectorBase<T, H>::push_back(const T& value) {
 	rcFree(m_data);
 	m_data = data;
 }
+
+template <typename T, rcAllocHint H>
+T* rcVectorBase<T, H>::erase(T* first, T* last) {
+  rcAssert(first >= begin());
+  rcAssert(last <= end());
+  rcAssert(first <= last);
+  ptrdiff_t diff = last - first;
+  for (T* it = first; it + diff < end(); it++) {
+	*it = *(it + diff);
+	(it + diff)->~T();
+  }
+  m_size -= diff;
+  return first;
+}
+
+template <typename T, rcAllocHint H>
+T* rcVectorBase<T, H>::insert(const T* pos, const T& value) {
+  rcAssert(pos >= begin());
+  rcAssert(pos <= end());
+  rcSizeType insert_index = pos - m_data;
+
+  if (rcUnlikely(m_size >= m_cap)) {
+	// Reallocate
+	rcAssert(RC_SIZE_MAX / 2 >= m_size);
+	rcSizeType new_cap = m_size ? 2*m_size : 1;
+	T* data = allocate_and_copy(new_cap);
+	if (!data) {
+	  return NULL;
+	}
+	do_insert(data, insert_index, value);
+	rcFree(m_data);
+	m_data = data;
+	m_cap = new_cap;
+  } else {
+	do_insert(m_data, insert_index, value);
+  }
+  return m_data + insert_index;
+}
+
+template <typename T, rcAllocHint H>
+void rcVectorBase<T, H>::do_insert(T* data, rcSizeType insert_index, const T& value) {
+  // Move tail data up one position.
+  for (rcSizeType i = m_size - 1; i >= insert_index; i--) {
+	construct(data + i + 1, data[i]);
+	data[i].~T();
+  }
+  // Insert new element.
+  construct(data + insert_index, value);
+  m_size++;
+}
+
 template <typename T, rcAllocHint H>
 void rcVectorBase<T, H>::resize_impl(rcSizeType size, const T* value) {
 	if (size < m_size) {

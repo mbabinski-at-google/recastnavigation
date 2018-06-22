@@ -19,6 +19,8 @@
 #ifndef RECAST_H
 #define RECAST_H
 
+#include "RecastAlloc.h"
+
 /// The value of PI used by Recast.
 static const float RC_PI = 3.14159265f;
 
@@ -282,15 +284,6 @@ struct rcSpan
 	unsigned int area : 6;                   ///< The area id assigned to the span.
 };
 
-/// A memory pool used for quick allocation of spans within a heightfield.
-/// @see rcHeightfield
-struct rcSpanPool
-{
-	rcSpanPool* next;					///< The next span pool.
-	rcSpan items[RC_SPANS_PER_POOL];	///< Array of spans in the pool.
-	int index;							///< Index of next span free in pool.
-};
-
 /// A dynamic heightfield representing obstructed space.
 /// @ingroup recast
 struct rcHeightfield
@@ -304,10 +297,7 @@ struct rcHeightfield
 	float bmax[3];				///< The maximum bounds in world space. [(x, y, z)]
 	float cs;					///< The size of each cell. (On the xz-plane.)
 	float ch;					///< The height of each cell. (The minimum increment along the y-axis.)
-	rcSpan** spans;				///< Heightfield of spans (width*height).
-	unsigned char* spanCounts;	///< Count of spans (width*height).
-	unsigned char* spanCaps;	///< Capacity of spans (width*height).
-	rcSpanPool* pools;			///< Linked list of span pools.
+	rcPermVector<rcPermVector<rcSpan> > spans;				///< Heightfield of spans (width*height).
 
 private:
 	// Explicitly-disabled copy constructor and copy assignment operator.
